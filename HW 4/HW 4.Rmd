@@ -1,0 +1,326 @@
+---
+title: "HW 4"
+author: "David Gao"
+date: '2022-10-25'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+oj<- read.csv("C:\\UW\\AUT 2022\\ECON 487\\HW 2\\oj.csv")
+```
+
+
+1. In the last assignment you calculated the MSE on a test set.  Let’s expand that code to include 5-fold cross validation.  
+ a) Create 5 partitions of the data of equal size.
+
+```{r}
+n <- nrow(oj)
+oj_temp <- oj %>%
+  mutate(binom = rbinom(nrow(oj), 1, 0.4))
+
+oj1 <- oj_temp %>%
+  filter(binom == 0)
+
+oj1 <- oj1 %>%
+  mutate(binom = rbinom(nrow(oj1), 1, 0.333333))
+
+oj11 <- oj1 %>%
+  filter(binom == 0)
+
+oj20 <- oj1 %>%
+  filter(binom == 1)
+
+oj111 <- oj11 %>%
+  mutate(binom = rbinom(nrow(oj11), 1, 0.5))
+
+oj40 <- oj111 %>%
+  filter(binom == 0)
+
+oj60 <- oj111 %>%
+  filter(binom == 1)
+
+oj2 <- oj_temp %>%
+  filter(binom == 1)
+
+oj2 <- oj2 %>%
+  mutate(binom = rbinom(nrow(oj2), 1, 0.5))
+
+oj80 <- oj2 %>%
+  filter(binom == 0)
+
+oj100 <- oj2 %>%
+  filter(binom == 1)
+```
+
+ b) Create 5 training datasets using 80% of the data for each one. 
+
+```{r}
+# bind all fold
+oj_new <- rbind(oj20, oj40, oj60, oj80, oj100)
+
+# create lagged price (code copied from solution for HW3)
+oj_new <- oj_new %>% 
+  arrange(week) %>% 
+  group_by(store, brand) %>% 
+  mutate(lag_price = ifelse(lag(week) + 1 == week, lag(price), NA)) %>% 
+  ungroup()
+
+# replace all NA value in lagged price with mean price
+oj_new[is.na(oj_new)] <- mean(oj$price)
+
+MSE1 = c(0, 0, 0, 0, 0)
+# number of rows for each fold
+rows <- c(0, 5795, 5816, 5772, 5820, 5744)
+
+for (i in 1:5) {
+  start <- sum(rows[1:i])
+  ends <- start + rows[i+1]
+  oj_temp <- oj_new[start:ends,]
+  
+  # sampling training and testing data using binomial variable with P(x = 1) = 0.8
+  oj_temp <- oj_temp %>%
+  mutate(binom = rbinom(nrow(oj_temp), 1, 0.8))
+
+  oj_train <- oj_temp %>%
+    filter(binom == 1)
+
+  oj_test <- oj_temp %>%
+    filter(binom == 0)
+
+  # fit model
+  model <- lm(logmove ~ log(price) + feat + brand + brand*log(price) + log(lag_price) + AGE60 + EDUC + ETHNIC + INCOME + HHLARGE + WORKWOM + HVAL150 + SSTRDIST + SSTRVOL + CPDIST5 + CPWVOL5 + EDUC*log(price) + HHLARGE*log(price), data = oj_train)
+  
+  # predict value
+  logmove_hat <- predict(model, newdata = oj_test)
+  
+  # MSE for each fold
+  MSE <- sum((oj_test$logmove - logmove_hat)^2)/n
+  
+  # store MSE for each fold
+  MSE1[i] <- MSE
+}
+avg_MSE <- mean(MSE1)
+
+MSE1
+avg_MSE
+```
+
+ c) Estimate a complex model using OLS which includes price, featured, brand, brand*price 
+and lagged price, all the sociodemographic variables and interactions of EDUC and 
+HHSIZE with price on each of the training sets then the MSE on the test sets using the 
+predict command.
+
+ (i) Calculate the MSE for the model on the test set for each fold (e.g., there will be 
+five sets of model parameters and five test set MSEs with 5-fold cross 
+validation). 
+
+  The MSE for each fold is `r MSE1[1]`, `r MSE1[2]`, `r MSE1[3]`, `r MSE1[4]`, and `r MSE1[5]`.
+
+ (ii) Average across the MSEs to get the cross validated MSE for an OLS model run 
+on that particular set of features.
+
+  The average MSE is `r avg_MSE`.
+  
+2. Now lets take that same model from (1.c) and run a LASSO using glmnet which is a workhorse R package for LASSO, Ridge and Elastic Nets. 
+
+ a) First remember to install the glmnet package and library to your R session. 
+
+```{r}
+library("glmnet")
+```
+
+ b) Remember to estimate a LASSO you must pass glmnet a matrix of data for candidate features and a vector as candidate outcomes:
+
+```{r}
+oj_RHS <- oj_new %>%
+  select(brand, store, week, feat, price, AGE60, EDUC, ETHNIC, INCOME, HHLARGE, WORKWOM, HVAL150, SSTRDIST, SSTRVOL, CPDIST5, CPWVOL5, lag_price)
+
+oj_LHS <- oj_new %>%
+  select(logmove)
+```
+
+ c) Which are the parameters the cross validated LASSO model kicks out of the model?  What is the ratio of number of features to number of observations?  How might that relate to overfitting from “sampling error”?
+
+```{r}
+x <- as.matrix(oj_RHS)
+y <- as.numeric(as.matrix(oj_LHS))
+
+#x <- as.matrix(oj_new[ ,5:17])
+#y <- as.numeric(as.matrix(oj_new[ ,4]))
+
+lasso_v1 <- glmnet(x, y, alpha=1)
+#Results
+plot(lasso_v1)
+coef(lasso_v1, s=lasso_v1$lambda.min)
+```
+
+```{r}
+# Now ready for cross validation version of the object
+#x <- as.matrix(oj_new[ ,5:17])
+#y <- as.numeric(as.matrix(oj_new[ ,4]))
+
+x <- as.matrix(oj_RHS[,2:17])
+y <- as.numeric(as.matrix(oj_LHS))
+
+cvfit <- cv.glmnet(x, y, alpha=1)
+#Results
+plot(cvfit)
+cvfit$lambda.min
+log(cvfit$lambda.min)
+coef(cvfit, s = "lambda.min")
+```
+
+ Seems like none of the variable is kicked out by the LASSO model from the. And the lasso_v1 part, as both do not have coefficient values in the whole process. The ratio should be 17:28947. This result is obtained with min of lambda, which means overfitting might happen as variables that are unnecessary might be inclued in the model. (brand is removed as I ended up with *error: object of type 'closure' is not subsettable* when trying `X <- model.matrix(formula, df_RHS)` and can not find a way to solve it lol)
+
+ d) Can you look that the glmnet objects and figure out what the out of sample (e.g., test 
+set) average MSE was with the cross validated LASSO model relative to the model in 1.c?
+
+The MSE of LASSO model should be smaller than OLS model as OLS included more unnecessary variables that might lead to overfitting, making smaller MSE in trainning data but larger MSE in testing and actual data.
+
+ e) What is the advantage of using LASSO for choosing model complexity as opposed to using your intuition as an economist? 
+ 
+ The advantage of LASSO is that we can get an simpler model with only related variables, whereas unrelated variables will have coefficient 0, which is opposed to adding more variables into the model to make it more accurate.
+
+ i) In what part of this process did you use your intuition as an economist? (HINT: what’s in the X matrix?)
+ 
+ We assume all varaibles are relative to log quantity and put all of them into the LASSO model for cross validation.
+
+3. Now estimate the model with only the variable selected with the LASSO procedure but with OLS to avoid attenuation bias in the coefficients.
+
+```{r}
+model <- lm(logmove ~ log(price) + feat + brand + brand*log(price) + log(lag_price) + log(lag_price)*log(price) + AGE60 + EDUC + ETHNIC + INCOME + HHLARGE + WORKWOM + HVAL150 + SSTRDIST + SSTRVOL + CPDIST5 + CPWVOL5 + EDUC*log(price) + HHLARGE*log(price), data = oj_new)
+
+summary(model)
+```
+
+ i) For Dominicks when the lagged price is $1 (NOTE: did you interact lagged price with current period price?)  If not, does lagged price impact the elasticity this period or log move this period.
+
+ The elasticity of Dominicks when lagged price is $1 is -3.080147 + 0.866612*1 + -0.469751 = -2.683286 as Dominicks is taken as the reference in this model. And the lagged price influences the elasticity this preriod.
+
+ ii) For Tropicana
+ 
+ The elasticity for Tropicana is -3.080147 + 0.866612 + 1.031117 + -0.469751 = -1.652169.
+ 
+ iii) For Tropicana when its featured
+ 
+ The elasticity for Tropicana is  -3.080147 + 0.807220 + 0.866612 + 1.031117 + -0.469751 = -0.844949.
+
+ iv) What is the 95% confidence intervals for Tropicana
+ 
+ The 95% confidence interval for elastisity of Tropicana is [-1.652169 - 1.96 $\cdot$ 0.253898, -1.652169 + 1.96 $\cdot$ 0.253898], which is [-2.149809, -1.154529].
+ 
+ b) Which product has the most elastic demand?
+ 
+ Looks like Tropicana has Tropicana has the most elastic demand as it has the highest elasticity.
+ 
+ i) Should that product have the highest markup over costs or lowest markup over 
+costs?  Why?
+
+ It should have the lowest markup as highest elasticity means small change in price will lead to huge impact on quantity, thus the slope for demand curve is relatively flat, which leads to low markup.
+ 
+4. Go back to using logmove and log(price).  
+a) Estimate a 3x3 matrix own price and cross price elasticities for Dominicks, Minute Maid, and Tropicana using only the current week’s prices. 
+
+```{r}
+oj_price <- oj %>%
+  select(store, week, brand, price) %>% 
+  group_by(store, week, brand) %>%
+  mutate(brand_temp = brand) %>%
+  pivot_wider(id_cols = c(store, week), names_from = brand, values_from = price)
+  
+oj_join <- oj %>% 
+  select(store, week, logmove, brand) %>% 
+  left_join(oj_price, by = c('store', 'week')) 
+
+oj_trop <- oj_join %>%
+  filter(brand == "tropicana")
+
+oj_minu <- oj_join %>%
+  filter(brand == "minute.maid")
+
+oj_domi <- oj_join %>%
+  filter(brand == "dominicks")
+
+model1 <- lm(logmove ~ log(tropicana) + log(minute.maid) + log(dominicks), data = oj_trop)
+model2 <- lm(logmove ~ log(tropicana) + log(minute.maid) + log(dominicks), data = oj_minu)
+model3 <- lm(logmove ~ log(tropicana) + log(minute.maid) + log(dominicks), data = oj_domi)
+
+
+tropicana <- summary(model1)$coefficients[, "Estimate"][2:4]
+minute.maid <- summary(model2)$coefficients[, "Estimate"][2:4]
+dominicks <- summary(model3)$coefficients[, "Estimate"][2:4]
+
+matrix_e <- rbind(tropicana, minute.maid, dominicks)
+matrix_e
+```
+
+b) Do the same but add in interactions for whether or not each brand is featured.
+
+```{r}
+oj_join <- oj %>% 
+  select(store, week, logmove, brand, feat) %>% 
+  left_join(oj_price, by = c('store', 'week')) 
+
+oj_trop <- oj_join %>%
+  filter(brand == "tropicana")
+
+oj_minu <- oj_join %>%
+  filter(brand == "minute.maid")
+
+oj_domi <- oj_join %>%
+  filter(brand == "dominicks")
+
+model1 <- lm(logmove ~ log(tropicana) + log(minute.maid) + log(dominicks) + feat*log(tropicana) + feat*log(minute.maid) + feat*log(dominicks), data = oj_trop)
+model2 <- lm(logmove ~ log(tropicana) + log(minute.maid) + log(dominicks) + feat*log(tropicana) + feat*log(minute.maid) + feat*log(dominicks), data = oj_minu)
+model3 <- lm(logmove ~ log(tropicana) + log(minute.maid) + log(dominicks) + feat*log(tropicana) + feat*log(minute.maid) + feat*log(dominicks), data = oj_domi)
+
+summary(model1)
+summary(model2)
+summary(model3)
+
+tropicana <- summary(model1)$coefficients[, "Estimate"][2:4]
+minute.maid <- summary(model2)$coefficients[, "Estimate"][2:4]
+dominicks <- summary(model3)$coefficients[, "Estimate"][2:4]
+
+matrix_e <- rbind(tropicana, minute.maid, dominicks)
+matrix_e
+```
+
+ i) How do the estimates change?
+
+The cross price elasticity for Dominicks and tropicana changes from positive to negative.
+
+ ii) What product’s sales suffer the most when Minute Maid is both featured and lowers its price?
+
+ Dominicks would suffer the most as the cross elasticity of Dominicks and Minute Maid is the largest, and the coefficient for Minute Maid being featured is also the largest in model3 for quantity of Dominicks.
+ 
+ c) Which two products are the most competitive with each other? 
+ 
+ Looks like dominicks and Minute Maid are competitive with each other
+ 
+ i) How did you infer that looking at the cross price elasticity? 
+ 
+ The cross elasticity of Minute Maid and Dominicks is positive and has the largest absolute value, which means one percent increase in price of Minute Maid will lead to 0.8 percent increase in quantity of Dominicks, which means they are substitute and compete with each other.
+ 
+ ii) What do you expect that to mean about the correlation of the prices of those two products?  Would they be more correlated or less correlated than the price of other pairs of products?
+ 
+ Based on the cross elasticity of them, one percent increase in price of Minute Maid will lead to 0.8 percent increase in quantity of Dominicks, which means they are substitute and compete with each other. And they are more correlated than other pairs as the corss elasticity between Minute Maid and Dominicks has the largest absolute value.
+
+
+
+
+
+
+
+
+
+

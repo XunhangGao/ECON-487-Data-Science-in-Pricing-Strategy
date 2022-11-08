@@ -1,0 +1,209 @@
+---
+title: "HW 2"
+author: "David Gao"
+date: "10/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Theory Section
+
+## 1.
+
+#### (a) (i)
+The lowest bound for access fee should always be 0, as no one want to pay it.
+
+#### (a) (ii)
+The demand curve would be downward (negative slope), assume with constant marginal cost, the consumer surplus (area of triangle above MC cure and below demand curve) wound be the upper bound for the access fee.
+
+#### (a) (iii)
+If both elastic and inelastic demand curve have same intercepts on price for 0 unite product, then consumer gourp with elastic demand curve would be charged with higher access fee as there is more consumer surplus.
+
+#### (b) (i)
+If a two-part tariff is charged, large amount of consumer of this product might be lost and turn to purchase other substitutes.
+
+#### (b) (ii) (1)
+The optimal strategy would be charge access fee for those do not know substitutes, and do not charge access fee for those who know substitutes.
+
+#### (b) (ii) (1) (a)
+If the demand is inelastic, we can charge access fee, as demand quantity and total revenue will not dramatically increase even if we lower the unit price, thus, charge access fee will bring more income directly.
+
+#### (b) (ii) (1) (b)
+We can charge access fee for all consumers, as uninformed consumers do not know substitutes, we can charge maximum access fee equal to consumer surplus, and for informed consumers, same logic as part (a).
+
+## Empirical Section
+#### 1&2&3
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+oj<- read.csv("C:\\UW\\AUT 2022\\ECON 487\\HW 2\\oj.csv")
+```
+
+#### 4 (a)
+```{r}
+ggplot(data = oj)+
+  geom_boxplot(mapping = aes(y = price))+
+  labs(y = "Price")
+```
+
+#### 4 (b)
+```{r}
+ggplot(data = oj)+
+  geom_boxplot(mapping = aes(y = log(price)))+
+  labs(y = "Price")
+```
+
+#### 4 (c)
+```{r}
+ggplot(data = oj)+
+  geom_boxplot(mapping = aes(y = price, fill = brand))+
+  labs(y = "Price", fill = "Brands")
+```
+
+#### 4 (d)
+```{r}
+ggplot(data = oj)+
+  geom_boxplot(mapping = aes(y = log(price), fill = brand))+
+  labs(y = "Log Price", fill = "Brands")
+```
+
+#### 4 (e)
+Form the plots, dominicks has lowest average price (also in log price), and tropicana has highest price (also in log price). And log price plot only inform more on spread of some outlier. As this is no exponential relation in plot, log price does not help on simplifying relations.
+
+#### 5
+```{r}
+ggplot(data = oj)+
+  geom_point(mapping = aes(x = logmove, y = log(price), color = brand))+
+  labs(x = "Log quantity", y = "Log Price", color = "Brands")
+```
+This plot shows negative relation between log price and log quantity, which is similar to a demand curve. And from this plor, dominicks seems to still have lowest log unit price where as tropicana has the highest log unit price.
+
+#### 6 (a)
+```{r}
+model1 <- lm(logmove ~ log(oj$price), data = oj)
+summary(model1)
+```
+Currently, we are having Q(p) = a$\cdot$p + b, thus, P(q) = $\frac{q}{a}$ - $\frac{b}{a}$. Then, as elasticity $\epsilon$ = $\frac{-1}{P'(q)}$$\cdot$$\frac{P(q)}{q}$. By replacing P'(q) with $\frac{1}{a}$, we have $\epsilon$ = $\frac{-1}{\frac{1}{a}}$$\cdot$$\frac{\frac{1}{a} \cdot (-q + b)}{q}$ = $\frac{q - b}{q}$
+The elasticity is function $\epsilon$ = $\frac{q - 10.42342 }{q}$. And this elasticity function is well defined on positive integers.
+
+#### 6 (b)
+```{r}
+model2 <- glm(logmove ~ log(oj$price) + factor(brand), data = oj)
+summary(model2)
+```
+We have three intercepts for three brands, and tropicana has the highest intercept at 12.3 and dominicks has the lowest intercept at 10.8. And this means tropicana has highest demand curve (highest price at same quantity) and dominicks has lowest demand curve (lowest price at same quantity).
+
+#### 6 (c)
+```{r}
+dominicks_data <- oj %>%
+  filter(brand == "dominicks")
+
+minute.maid_data <- oj %>%
+  filter(brand == "minute.maid")
+
+tropicana_data <- oj %>%
+  filter(brand == "tropicana")
+
+model_d <- lm(logmove ~ log(price), data = dominicks_data)
+summary(model_d)
+
+model_m <- lm(logmove ~ log(price), data = minute.maid_data)
+summary(model_m)
+
+model_t <- lm(logmove ~ log(price), data = tropicana_data)
+summary(model_t)
+
+```
+Currently, we are having Q(p) = a$\cdot$p + b, thus, P(q) = $\frac{q}{a}$ - $\frac{b}{a}$. Then, as elasticity $\epsilon$ = $\frac{-1}{P'(q)}$$\cdot$$\frac{P(q)}{q}$. By replacing P'(q) with $\frac{1}{a}$, we have $\epsilon$ = $\frac{-1}{\frac{1}{a}}$$\cdot$$\frac{\frac{1}{a} \cdot (-q + b)}{q}$ = $\frac{q - b}{q}$.
+The elasticity for dominicks is function $\epsilon_d$ = $\frac{q - 10.95468 }{q}$.
+The elasticity for minute.maid is function $\epsilon_m$ = $\frac{q - 11.84294 }{q}$.
+The elasticity for tropicana is function $\epsilon_m$ = $\frac{q - 11.91707 }{q}$.
+And as all these elastisities are well defined on positive integer q, they make sense.
+
+#### 7 (a)
+```{r}
+aggregate(oj[, 5:6], list(oj$brand), mean) 
+```
+The table presents the average price and feature rate of each brand.
+
+```{r}
+ggplot(data = oj)+
+  geom_point(mapping = aes(x = factor(brand), y = feat, fill = factor(brand)), position = "jitter", alpha = 0.4)
+```
+From the plot, looks like minute.maid featured the most as it has the lowest transparency (the darkest color for feat = 1), and tropicana has the featured the least. And this corresponds with the feature rate in the table above.
+
+#### 7 (b)
+```{r}
+model1 <- glm(logmove ~ log(oj$price) + factor(feat), data = oj)
+summary(model1)
+```
+
+
+#### 7 (c)
+```{r}
+model1 <- glm(logmove ~ log(oj$price)*factor(feat) + factor(feat) + log(oj$price), data = oj)
+summary(model1)
+```
+
+
+#### 7 (d)
+```{r}
+model1 <- glm(logmove ~ log(price) + factor(feat), data = dominicks_data)
+summary(model1)
+
+model2 <- glm(logmove ~ log(price) + factor(feat), data = minute.maid_data)
+summary(model2)
+
+model3 <- glm(logmove ~ log(price) + factor(feat), data = tropicana_data)
+summary(model3)
+```
+Currently, we are having Q(p) = a$\cdot$p + c$\cdot$feat + b, thus, P(q) = $\frac{q}{a}$ - $\frac{c \cdot feat}{a}$ - $\frac{b}{a}$. Then, as elasticity $\epsilon$ = $\frac{-1}{P'(q)}$$\cdot$$\frac{P(q)}{q}$. By replacing P'(q) with $\frac{1}{a}$, we have $\epsilon$ = $\frac{-1}{\frac{1}{a}}$$\cdot$$\frac{\frac{1}{a} \cdot (-q + c \cdot feat + b)}{q}$ = $\frac{q - b}{q}$.
+The elasticity for dominicks is function $\epsilon_d$ = $\frac{q - 0.87732 \cdot feat- 10.47934}{q}$.
+The elasticity for minute.maid is function $\epsilon_m$ = $\frac{q - 1.11976 \cdot feat - 10.76757 }{q}$.
+The elasticity for tropicana is function $\epsilon_m$ = $\frac{q - 0.58169 \cdot feat - 11.38555}{q}$.
+
+#### 7 (e)
+```{r}
+model1 <- glm(logmove ~ log(oj$price) + factor(feat) + week, data = oj)
+summary(model1)
+```
+I add week variable to form formula $Q(p) = a \cdot p + b \cdot feat + c \cdot week + d$, where a = -1.135, b = 1.058, c = 0.00079, d = 9.727.
+
+#### 8 (a)
+From 6 (c), we have Q(p) for each brand, and the dominicks has the smallest slope in Q(p), which means largest slope in demand curve P(q). And tropicana has the largest slope in Q(p), which means smallest slope in demand curve P(q).
+Thus, dominicks has the highest elasticity, and tropicana has the lowest elasticity.
+
+#### 8 (b)
+The average prices match the elasticities, as highest elasticity requires lowest price to maintain the quantity and profit as shown in dominicks. And the lowest elasticity can set highest price to maximize the profit as quantity will not be influenced, as shown in tropicana. (using log price here as the model from previous parts are using log price)
+
+#### 8 (c)
+```{r}
+# average log price
+avg_d = mean(log(dominicks_data$price))
+avg_d
+
+avg_m = mean(log(minute.maid_data$price))
+avg_m
+
+avg_t = mean(log(tropicana_data$price))
+avg_t
+```
+From previous parts, we know Q(q) = a$\cdot$p + b (p for log price), then $Q_d$ = -3.37753$\cdot$0.5269682 + 10.95468 = 9.174829, $Q_m$ = -3.32073 $\cdot$0.7906856 + 11.84294 = 9.217287, $Q_t$ = -2.71177$\cdot$1.034597 + 11.91707 = 9.111481.
+
+The elasticity for dominicks is $\epsilon_d$ = $\frac{q - 10.95468 }{q}$ = -0.1939928.
+The elasticity for minute.maid is $\epsilon_m$ = $\frac{q - 11.84294 }{q}$ = -0.2848618.
+The elasticity for tropicana is $\epsilon_t$ = $\frac{q - 11.91707 }{q}$ = -0.307918.
+By function $\frac{p - c}{p} = \frac{-1}{\epsilon}$, log of $C_d$ = -2.18946, log of $C_m$ = -1.985, and log of $C_t$ = -2.32538. Thus, $C_d$ = 0.006465, $C_m$ = 0.010351, $C_t$ = 0.004727.
+
+The unit cost are different, but differences are small. As seen, minute.maid has the highest cost, which can be caused by the high rate of feature which is the use of advertisements. And tropicana has the lowest unit cost as it has the lowest fearture rate, which means less advertisement cost.
+
+
+
+
+

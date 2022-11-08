@@ -1,0 +1,299 @@
+---
+title: "HW 3"
+author: "David Gao"
+date: '2022-10-18'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+oj<- read.csv("C:\\UW\\AUT 2022\\ECON 487\\HW 2\\oj.csv")
+```
+
+
+## Theoretical Questions:
+
+1. Go back to lecture 2’s slides on Value Based Pricing.  List each type of value-based pricing (e.g., 2-part tariffs, bundling, etc.). 
+    a. Give a one sentence definition of each.  
+        - Perfect price discrimination: Charge each consumer her willing to pay.
+        - Indirect price discrimination: Offer multiple versions to all and allow consumers to self select.
+        - Two Part Tariff: A flat fee and a unit price.
+        - Direct price discrimination: Different prices based on customer characteristics.
+    b. Try to think of one practical problem with implementing each type of value based pricing.  This could be either competitive (e.g., competing firms) or information deficiencies.
+        - Perfect price discrimination: car salesman who try to maximize car price for each consumer based on their willingness to pay.
+        - Indirect price discrimination: mobile phone with different storage, such as 64GB, 128GB and 256GB.
+        - Two Part Tariff: credit cards which charge an annual fee plus a per-transaction fee.
+        - Direct price discrimination: gas station charge based on how much gasoline is charged for each consumer.
+        
+2. Assume that in addition to orange juice, you also observe demand for bananas.
+    a. What regression would you run to determine if bananas and orange juice are compliments or substitutes?  What is the coefficient of interest (i.e. on what variable) that would inform you?
+    
+        I might run a regression on quantity of orange juice and price of bananas ($Q_{organe juice}$ = $\beta \cdot P_{bananas}$ + a), and a positive $\beta$ appears, then they are substitute.
+        
+    b. Assume you find they are substitutes.  What would the sign of the coefficient be? Would you be more or less likely to bundle these products if they are substitutes? 
+    
+        i. Explain why with an equation, figure or a sentence or two.  
+        
+            For equition $Q_{organe juice}$ = $\beta \cdot P_{bananas}$ + a, if a positive $\beta$ appears, then they are substitute, as more sales in bananas leads to less sales in orange juice. And we are less likely to use bundle, as if both of them are in bundle, we might lost both consumer groups that prefer either orange juice or bananas.
+            
+        ii. Would the price of the bundle be less than or more than the sum of the two independent prices?  (Not a trick question; verifying you understand bundles.)
+        
+            If they are substitute, we might want to make the bundel price less than the sum of independent price.
+            
+    c. During a sale for orange juice, should you continue to offer the bundle?  Why or why not?  HINT: who is price sensitive for orange juice?  Who comes into market?  Would you want to offer the bundle at a lower price than before? 
+    
+        Sale in orange juice might be more attactive to people who likes orange and does not prefer bananas. Then, we should not use bundle as this might have negative influence on sales of orange juice.
+    
+    
+    
+    
+## Empirical Section
+
+1. Let’s return to the orange juice assignment and investigate how store demographics are related to demand.
+
+    a. Take one of the final models from HW2 (logmove ~ log(price)*brand*feat) and add in the store demographics as linear features (e.g. + demo1 + demo2). Report your output (past into your answer document).
+    
+```{r}
+model1 <- lm(logmove ~ log(price)*brand*feat+store, data = oj)
+summary(model1)
+```
+
+    b. What demographics significantly (t-value>2) influence demand? 
+        Looks like the variable **feature** and **store** are signigicantly influencing demand.
+        
+    c. Use the predict command to determine how well the model predicts logmove and create a new variable called logmove_hat. To do so construct the “fair r2” covered in class.  What is the improvement relative to the model without the demographic features? 
+    
+```{r}
+model2 <- lm(logmove ~ log(price)*brand*feat, data = oj)
+logmove_hat2 <- predict(model2, newdata = oj)
+logmove_hat1 <- predict(model1, newdata = oj)
+RSS1 <- sum((oj$logmove - logmove_hat1)^2) 
+RSS2 <- sum((oj$logmove - logmove_hat2)^2) 
+TSS <- sum((oj$logmove - mean(oj$logmove))^2)
+n <- nrow(oj)
+fair_R1 <- 1 - ((n - 1)/(n - 4 - 1))*(RSS1/TSS)
+fair_R2 <- 1 - ((n - 1)/(n - 3 - 1))*(RSS2/TSS)
+fair_R1
+fair_R2
+```
+
+        The prediction accuracy is slightly improved in new model with demographic varaible, as fair $R^2$ is larger.
+        
+    d.i & ii. Create a new dataframe which is a random subset of 80% of the data (look at sample_n from the dplyr package).
+    
+```{r}
+oj_temp <- oj %>%
+  mutate(binom = rbinom(n, 1, 0.8))
+
+oj80 <- oj_temp %>%
+  filter(binom == 1)
+
+oj20 <- oj_temp %>%
+  filter(binom == 0)
+
+model3 <- lm(logmove ~ log(price)*brand*feat+store, data = oj80)
+model4 <- lm(logmove ~ log(price)*brand*feat, data = oj80)
+
+logmove_hat3 <- predict(model3, newdata = oj20)
+logmove_hat4 <- predict(model4, newdata = oj20)
+
+MSE3 = sum((oj20$logmove - logmove_hat3)^2)/n
+MSE4 = sum((oj20$logmove - logmove_hat4)^2)/n
+```
+
+    d.ii. Estimate the model with and without demographic characteristics.  Construct MSE for the training and test set for the models.
+    
+         for model with demographic variable is `r MSE3`, and MSE for model without demographic variable is `r MSE4`.
+         
+    d.iii. Compare the out of sample MSE for the models.  Which is lower implying the model does a better job of fitting the data?
+    
+        The new model has slightly lower MSE, which means it does a better job.
+        
+2. Let’s focus on two variables HHLARGE (“fraction of households that are large”) and EDUC (“fraction of shoppers with advanced education”). 
+
+    a. What are the means and percentiles of each of these variables? HINT: summary(oj$EDUC)
+    
+```{r}
+summary(oj$EDUC)
+summary(oj$HHLARGE)
+```
+
+    b. Using your coefficient estimates from the regression in 1b:
+    
+        i. If we move from the median value of HHLARGE to the 75th percentile (3rd quartile), how much does log(quantity) change each week on average?
+        
+```{r}
+model5 <- lm(logmove ~ log(price)*brand*feat + store + HHLARGE + EDUC, data = oj)
+summary(model5)
+```
+
+```{r}
+sum_M = 0
+sum_Q = 0
+for (cweek in 40:160) {
+  oj_cweek <- oj %>%
+    filter(week == cweek)
+  
+  oj_cweek_mean <- oj_cweek %>%
+    mutate(HHLARGE = rep(c(0.11560), each = nrow(oj_cweek)))
+  
+  oj_cweek_3rdq <- oj_cweek %>%
+    mutate(HHLARGE = rep(c(0.13517), each = nrow(oj_cweek)))
+  
+  sum_mean <- sum(predict(model5, newdata = oj_cweek_mean))
+  sum_3rdq <- sum(predict(model5, newdata = oj_cweek_3rdq))
+  
+  sum_M = sum_M + sum_mean
+  sum_Q = sum_Q + sum_3rdq
+}
+
+sum_M/120 - sum_Q/120
+
+```
+
+            The log quantity is increased by 16 units as we move HHLARGE from mean value to 3rd quartile value.
+            
+        ii.If we move from the median value of EDUC to the 75th percentile (3rd quartile), how much does log(quantity) change each week on average?
+        
+```{r}
+sum_M = 0
+sum_Q = 0
+for (cweek in 40:160) {
+  oj_cweek <- oj %>%
+    filter(week == cweek)
+  
+  oj_cweek_mean <- oj_cweek %>%
+    mutate(EDUC = rep(c(0.22522), each = nrow(oj_cweek)))
+  
+  oj_cweek_3rdq <- oj_cweek %>%
+    mutate(EDUC = rep(c(0.28439), each = nrow(oj_cweek)))
+  
+  sum_mean <- sum(predict(model5, newdata = oj_cweek_mean))
+  sum_3rdq <- sum(predict(model5, newdata = oj_cweek_3rdq))
+  
+  sum_M = sum_M + sum_mean
+  sum_Q = sum_Q + sum_3rdq
+}
+
+sum_M/120 - sum_Q/120
+```
+
+            The log quantity is increased by 3 units as we move EDUC from mean value to 3rd quartile value.
+            
+        iii. Base on this analysis, which is the more important predictor of demand?
+        
+            HHLARGE should be more importand as it increases log quantity by a larger amount.
+            
+    c. Now let’s see if these variables impact price sensitivity. Add two interaction terms (with logprice) to the model to test this. 
+    
+```{r}
+model6 <- lm(logmove ~ log(price)*brand*feat + store + HHLARGE*log(price) + EDUC*log(price), data = oj)
+summary(model6)
+```
+
+        i. What are the coefficients on the interaction terms? 
+        
+            The coefficients are -4.8287076 for HHLARGE and log price, and 3.7485178 for EDUC and log price.
+            
+        ii. Does the sign of your estimates make sense based on your intuition?
+        
+            The sign of HHLARGE make sense as negative coefficient means negative influence on quantity, which means if the fraction for large household is high, then the effect of price on quantity will be magnified, and a negative sign means large family tends to buy less units if price is high, which correpsonds to what happends in daily lives.
+            
+        iii. What are the coefficient estimates on the variables EDUC and HHLARGE that aren’t part of the interaction term? How do they compare to your regression from 1b?
+        
+            The coefficient for HHLARGE is 0.3782223, and the coefficient for EDUC is -3.1728216. And compared to previous model, the sign of coefficient of HHLARGE is changed to positive.
+            
+        iv. Similar to 2b, if we move from the median value of each variable to the 3rd quartile, how much does elasticity change? Based on this, which is more important to price sensitivity?
+        
+```{r}
+# HHLARGE change
+sum_M = 0
+sum_Q = 0
+for (cweek in 40:160) {
+  oj_cweek <- oj %>%
+    filter(week == cweek)
+  
+  oj_cweek_mean <- oj_cweek %>%
+    mutate(HHLARGE = rep(c(0.11560), each = nrow(oj_cweek)))
+  
+  oj_cweek_3rdq <- oj_cweek %>%
+    mutate(HHLARGE = rep(c(0.13517), each = nrow(oj_cweek)))
+  
+  sum_mean <- sum(predict(model6, newdata = oj_cweek_mean))
+  sum_3rdq <- sum(predict(model6, newdata = oj_cweek_3rdq))
+  
+  sum_M = sum_M + sum_mean
+  sum_Q = sum_Q + sum_3rdq
+}
+
+diff_HHLARGE <- sum_M/120 - sum_Q/120
+
+
+# EDUC change
+sum_M = 0
+sum_Q = 0
+for (cweek in 40:160) {
+  oj_cweek <- oj %>%
+    filter(week == cweek)
+  
+  oj_cweek_mean <- oj_cweek %>%
+    mutate(EDUC = rep(c(0.22522), each = nrow(oj_cweek)))
+  
+  oj_cweek_3rdq <- oj_cweek %>%
+    mutate(EDUC = rep(c(0.28439), each = nrow(oj_cweek)))
+  
+  sum_mean <- sum(predict(model6, newdata = oj_cweek_mean))
+  sum_3rdq <- sum(predict(model6, newdata = oj_cweek_3rdq))
+  
+  sum_M = sum_M + sum_mean
+  sum_Q = sum_Q + sum_3rdq
+}
+
+diff_EDUC <- sum_M/120 - sum_Q/120
+
+diff_HHLARGE
+diff_EDUC
+```
+
+             Form the result, HHLARGE has higher elasticity, as change in HHLARGE leads to higher increase in quantity, thus HHLARGE seems to be more important to price sensitivity.
+             
+    d. You should notice that the coefficients on EDUC and HHLARGE have flipped sign once we include interaction terms with price. HHLARGE now appears to be a positive demand shifter and increases price sensitivity. Explain in words or pictures what is going on.
+    
+        If we do not consider interaction between price and HHLARGE, HHLARGE alone would have negative influence on quantity, as larger family might drink less orange juice, they might prefer milk, coke or other substitutes more. But after considered the interaction between price and HHLARGE, it is that large family tends to save money, so they are sensitive to change in price, thus HHLARGE magnifies the impact of price on quantity.
+        
+3. Create make a new dataframe which takes the previous week’s prices as a variable on the same line as the current week.  This would enable you to see if there is intertemporal substitution. 
+
+    a. 
+    
+```{r}
+oj_week <- oj %>%
+  group_by(store, brand) %>%
+  mutate(last_price = lag(price)) %>%
+  ungroup()
+```
+
+    b. Now run a regression with this week’s log(quantity) on current and last week’s price.
+    
+```{r}
+model7 <- lm(logmove ~ log(price) + log(last_price), data = oj_week)
+summary(model7)
+```
+
+     c.What do you notice about the previous week’s elasticity?  Does this make sales more or less attractive from a profit maximization perspective?  Why?
+        The elasticity for previous week is positive. And this would make sales more attractive as the higher the price is during last week, the higher the sales this week. And this coincides with fact that if the price this week is high, people tends to wait untill the price drops to purchase, thus sales for next week would increase.
+
+
+
+
+
+
+
+
