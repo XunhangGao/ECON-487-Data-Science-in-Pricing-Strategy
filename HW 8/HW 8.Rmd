@@ -1,0 +1,210 @@
+---
+title: "HW 8"
+author: "David Gao"
+date: "2022-11-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(plyr)
+library(rpart)
+library(rpart.plot)
+library(partykit)
+library(permute)
+library(maptree)
+library(randomForest)
+library(glmnet)
+```
+
+```{r}
+oj<- read.csv("C:\\UW\\AUT 2022\\ECON 487\\HW 2\\oj.csv")
+```
+
+(a)
+```{r}
+trop <- oj %>%
+  filter(brand == "tropicana") 
+
+trop_lag <- data.frame(matrix(ncol = 18, nrow = 0))
+colnames(trop_lag) <- c("store","week","logmove","price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+
+for (i in 1:137){
+  temp <- trop %>%
+    filter(store == i)
+  if (nrow(temp) != 0){
+    for(i in 4:17){
+      temp[,17+i-3] = lag(temp[i])
+    }
+    names(temp)[18:31] =  paste0("lag_", names(temp)[4:17])
+    temp <- temp %>%
+      select("store","week","logmove","price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+    trop_lag <- rbind(trop_lag, temp[2:nrow(temp),])
+  }
+}
+```
+
+```{r}
+minu <- oj %>%
+  filter(brand == "minute.maid")
+
+minu_lag <- data.frame(matrix(ncol = 18, nrow = 0))
+colnames(minu_lag) <- c("store","week","logmove","price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+
+for (i in 1:137){
+  temp <- minu %>%
+    filter(store == i)
+  if (nrow(temp) != 0){
+    for(i in 4:17){
+      temp[,17+i-3] = lag(temp[i])
+    }
+    names(temp)[18:31] =  paste0("lag_", names(temp)[4:17])
+    temp <- temp %>%
+      select("store","week","logmove","price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+    minu_lag <- rbind(minu_lag, temp[2:nrow(temp),])
+  }
+}
+```
+
+```{r}
+domi <- oj %>%
+  filter(brand == "dominicks") 
+
+domi_lag <- data.frame(matrix(ncol = 18, nrow = 0))
+colnames(domi_lag) <- c("store","week","logmove","price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+
+for (i in 1:137){
+  temp <- domi %>%
+    filter(store == i)
+  if (nrow(temp) != 0){
+    for(i in 4:17){
+      temp[,17+i-3] = lag(temp[i])
+    }
+    names(temp)[18:31] =  paste0("lag_", names(temp)[4:17])
+    temp <- temp %>%
+      select("store","week","logmove","price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+    domi_lag <- rbind(domi_lag, temp[2:nrow(temp),])
+  }
+}
+```
+
+```{r}
+# trop
+# price
+trop_lag_p <- trop_lag %>%
+  select("price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+trop_lag_p$price <- log(trop_lag_p$price) 
+trop_lag_p$lag_price <- log(trop_lag_p$lag_price)
+trop_p.rf <- randomForest(price ~ ., data = trop_lag_p, ntree = 100, keep.forest = TRUE) 
+pred_p_rf = predict(trop_p.rf)
+trop_lag$residp <- trop_lag_p$price - pred_p_rf
+
+#logmove
+trop_lag_q <- trop_lag %>%
+  select("logmove","price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+trop_lag_q$price <- log(trop_lag_q$price) 
+trop_lag_q$lag_price <- log(trop_lag_q$lag_price)
+trop_q.rf <- randomForest(logmove ~ ., data = trop_lag_q, ntree = 100, keep.forest = TRUE) 
+pred_q_rf = predict(trop_q.rf)
+trop_lag$residq <- trop_lag_q$logmove - pred_q_rf
+
+trop_ci <- lm(residq ~ residp, data = trop_lag)
+trop_elasticity <- summary(trop_ci)$coefficients[, "Estimate"][2]
+summary(trop_ci)
+```
+
+```{r}
+# minu
+# price
+minu_lag_p <- minu_lag %>%
+  select("price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+minu_lag_p$price <- log(minu_lag_p$price) 
+minu_lag_p$lag_price <- log(minu_lag_p$lag_price)
+minu_p.rf <- randomForest(price ~ ., data = minu_lag_p, ntree = 100, keep.forest = TRUE) 
+pred_p_rf = predict(minu_p.rf)
+minu_lag$residp <- minu_lag_p$price - pred_p_rf
+
+#logmove
+minu_lag_q <- minu_lag %>%
+  select("logmove","price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+minu_lag_q$price <- log(minu_lag_q$price) 
+minu_lag_q$lag_price <- log(minu_lag_q$lag_price)
+minu_q.rf <- randomForest(logmove ~ ., data = minu_lag_q, ntree = 100, keep.forest = TRUE) 
+pred_q_rf = predict(minu_q.rf)
+minu_lag$residq <- minu_lag_q$logmove - pred_q_rf
+
+minu_ci <- lm(residq ~ residp, data = minu_lag)
+minu_elasticity <- summary(minu_ci)$coefficients[, "Estimate"][2]
+summary(minu_ci)
+```
+
+```{r}
+# domi
+# price
+domi_lag_p <- domi_lag %>%
+  select("price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+domi_lag_p$price <- log(domi_lag_p$price) 
+domi_lag_p$lag_price <- log(domi_lag_p$lag_price)
+domi_p.rf <- randomForest(price ~ ., data = domi_lag_p, ntree = 100, keep.forest = TRUE) 
+pred_p_rf = predict(domi_p.rf)
+domi_lag$residp <- domi_lag_p$price - pred_p_rf
+
+#logmove
+domi_lag_q <- domi_lag %>%
+  select("logmove","price","lag_logmove","lag_feat","lag_price","lag_AGE60","lag_EDUC","lag_ETHNIC","lag_INCOME","lag_HHLARGE","lag_WORKWOM","lag_HVAL150","lag_SSTRDIST","lag_SSTRVOL","lag_CPDIST5","lag_CPWVOL5")
+domi_lag_q$price <- log(domi_lag_q$price) 
+domi_lag_q$lag_price <- log(domi_lag_q$lag_price)
+domi_q.rf <- randomForest(logmove ~ ., data = domi_lag_q, ntree = 100, keep.forest = TRUE) 
+pred_q_rf = predict(domi_q.rf)
+domi_lag$residq <- domi_lag_q$logmove - pred_q_rf
+
+domi_ci <- lm(residq ~ residp, data = domi_lag)
+domi_elasticity <- summary(domi_ci)$coefficients[, "Estimate"][2]
+summary(domi_ci)
+```
+
+The own price elasticity of Tropicana is `r trop_elasticity`, own price elasticity of Minute.maid is `r minu_elasticity`, and the own price elasticity of Dominicks is `r domi_elasticity`.
+
+(b)
+```{r}
+trop_q <- trop_lag %>%
+  mutate(Q = residq) %>%
+  mutate(trop_P = residp) %>%
+  mutate(minu_P = minu_lag$residp) %>%
+  mutate(domi_P = domi_lag$residp) %>%
+  select("Q", "trop_P", "minu_P", "domi_P")
+
+minu_q <- minu_lag %>%
+  mutate(Q = residq) %>%
+  mutate(trop_P = trop_lag$residp) %>%
+  mutate(minu_P = residp) %>%
+  mutate(domi_P = domi_lag$residp) %>%
+  select("Q", "trop_P", "minu_P", "domi_P")
+
+domi_q <- domi_lag %>%
+  mutate(Q = residq) %>%
+  mutate(trop_P = trop_lag$residp) %>%
+  mutate(minu_P = minu_lag$residp) %>%
+  mutate(domi_P = residp) %>%
+  select("Q", "trop_P", "minu_P", "domi_P")
+
+trop_cci <- lm(Q ~ trop_P + minu_P + domi_P, data = trop_q)
+minu_cci <- lm(Q ~ trop_P + minu_P + domi_P, data = minu_q)
+domi_cci <- lm(Q ~ trop_P + minu_P + domi_P, data = domi_q)
+
+tropicana <- summary(trop_cci)$coefficients[, "Estimate"][2:4]
+minute.maid <- summary(minu_cci)$coefficients[, "Estimate"][2:4]
+dominicks <- summary(domi_cci)$coefficients[, "Estimate"][2:4]
+
+matrix_e <- rbind(tropicana, minute.maid, dominicks)
+matrix_e
+```
+
+
+

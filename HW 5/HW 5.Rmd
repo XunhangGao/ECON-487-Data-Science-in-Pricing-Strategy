@@ -1,0 +1,140 @@
+---
+title: "HW 5"
+author: "David Gao"
+date: '2022-10-29'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1) Consider the following regression and output in R.  The data here is the reshaped data where we’re only looking at the Tropicana sales.  Features include price of Dominicks, MM and Trop, though, and feat is only for Tropicana being featured.
+
+a) What is the expected change in quantity (in percents) for a 10% increase in the price of Trop?
+
+  The coefficient of price for Trop is -2.31, which is 10% increase in price of Trop will lead to approximately 23% decrease in quantity.
+  
+b) What is the expected change in quantity (in percents) for a 10% increase in the price of MM?
+
+  The coefficient of price for MM is 0.265621, which is 10% increase in the price of MM will lead to approximately 2.5% increase in quantity.
+  
+c) Why should we be concerned about inferring causality from the coefficient on log(P_Trop):feat?
+
+  As the coefficient is negative, this means at the same price, being featured for Trop will lead to decrease in quantity, which is the opposite of what we want for being featured.
+  
+d) If Trop is a normal good, what would you expect the sign of the interaction of INCOME and log(P_Trop) to be?
+
+  If Trop is a normal good, the sign of the interaction of INCOME and log(P_Trop) should be 
+positive.
+
+2) Subset the oj data to only look at Dominicks sales (to be turned in as Rmd output).
+
+a) Find the quartiles of INCOME.
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+oj<- read.csv("C:\\UW\\AUT 2022\\ECON 487\\HW 2\\oj.csv")
+```
+
+```{r}
+oj_price <- oj %>%
+  select(store, week, brand, price) %>% 
+  group_by(store, week, brand) %>%
+  mutate(brand_temp = brand) %>%
+  pivot_wider(id_cols = c(store, week), names_from = brand, values_from = price)
+
+oj_join <- oj %>% 
+  left_join(oj_price, by = c('store', 'week'))
+
+oj_Domi <- oj_join %>%
+  filter(brand == "dominicks")
+
+INCOME_q <- quantile(oj$INCOME, probs = c(0,0.25,0.5,0.75,1))
+INCOME_q
+```
+
+b) Average sales within each quartile.
+
+```{r}
+domi_1q <- oj_Domi %>%
+  filter(INCOME <= INCOME_q[2]) %>%
+  filter(INCOME >= INCOME_q[1])
+
+domi_2q <- oj_Domi %>%
+  filter(INCOME <= INCOME_q[3]) %>%
+  filter(INCOME >= INCOME_q[2])
+
+domi_3q <- oj_Domi %>%
+  filter(INCOME <= INCOME_q[4]) %>%
+  filter(INCOME >= INCOME_q[3])
+
+domi_4q <- oj_Domi %>%
+  filter(INCOME <= INCOME_q[5]) %>%
+  filter(INCOME >= INCOME_q[4])
+
+mean_1q <- mean(domi_1q$logmove)
+mean_2q <- mean(domi_2q$logmove)
+mean_3q <- mean(domi_3q$logmove)
+mean_4q <- mean(domi_4q$logmove)
+```
+
+  The average sales (logmove) in 1st quartile is `r mean_1q`. The average sales (logmove) in 2nd quartile is `r mean_2q`. The average sales (logmove) in 3rd quartile is `r mean_3q`. The average sales (logmove) in 4th quartile is `r mean_4q`.
+  
+c) Construct the MSE within each quartile for the model described above?
+
+```{r}
+model1 <- glm(formula = logmove ~ log(dominicks) + log(minute.maid) + log(tropicana) * feat + AGE60 + EDUC + ETHNIC + INCOME + HHLARGE + WORKWOM + HVAL150 + SSTRDIST + SSTRVOL + CPDIST5 + CPWVOL5, data = domi_1q)
+summary(model1)
+
+model2 <- glm(formula = logmove ~ log(dominicks) + log(minute.maid) + log(tropicana) * feat + AGE60 + EDUC + ETHNIC + INCOME + HHLARGE + WORKWOM + HVAL150 + SSTRDIST + SSTRVOL + CPDIST5 + CPWVOL5, data = domi_2q)
+summary(model2)
+
+model3 <- glm(formula = logmove ~ log(dominicks) + log(minute.maid) + log(tropicana) * feat + AGE60 + EDUC + ETHNIC + INCOME + HHLARGE + WORKWOM + HVAL150 + SSTRDIST + SSTRVOL + CPDIST5 + CPWVOL5, data = domi_3q)
+summary(model3)
+
+model4 <- glm(formula = logmove ~ log(dominicks) + log(minute.maid) + log(tropicana) * feat + AGE60 + EDUC + ETHNIC + INCOME + HHLARGE + WORKWOM + HVAL150 + SSTRDIST + SSTRVOL + CPDIST5 + CPWVOL5, data = domi_4q)
+summary(model4)
+```
+
+d) Which quartile has the lowest MSE?
+
+```{r}
+logmove_hat1 <- predict(model1, newdata = domi_1q)
+logmove_hat2 <- predict(model2, newdata = domi_2q)
+logmove_hat3 <- predict(model3, newdata = domi_3q)
+logmove_hat4 <- predict(model4, newdata = domi_4q)
+
+MSE1 <- sum((domi_1q$logmove - logmove_hat1)^2)/nrow(domi_1q)
+MSE2 <- sum((domi_2q$logmove - logmove_hat2)^2)/nrow(domi_2q)
+MSE3 <- sum((domi_3q$logmove - logmove_hat3)^2)/nrow(domi_3q)
+MSE4 <- sum((domi_4q$logmove - logmove_hat4)^2)/nrow(domi_4q)
+
+MSE1
+MSE2
+MSE3
+MSE4
+```
+
+The 3rd quartile has the lowest MSE.
+
+i) What does this mean about the distribution of sales within that quartile?
+
+This means the model for 3rd quartile might have overfitting problem, which means there are some factors not influencing the quantity but was included into the model.
+
+e) Which quartile has the highest MSE?
+
+The 1st quartile has the highest MSE.
+
+i) What does this mean about the distribution of sales with that quartile?
+
+This means the model does not fit the real distribution very well, which might be caused by that there are more factors or interactions between factors that are not considered in the model but actually influenced the model.
+
+
+
+
+
+

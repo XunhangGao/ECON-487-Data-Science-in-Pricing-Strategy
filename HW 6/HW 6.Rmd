@@ -1,0 +1,303 @@
+---
+title: "HW 6"
+author: "David Gao"
+date: '2022-11-08'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(plyr)
+library(rpart)
+library(rpart.plot)
+library(partykit)
+library(permute)
+library(maptree)
+```
+
+```{r}
+oj<- read.csv("C:\\UW\\AUT 2022\\ECON 487\\HW 2\\oj.csv")
+```
+
+1. Create a sales weighted price for orange juice by store. 
+a. You’ll first need to create actual sales (call it “Q”) instead of log sales for the 
+weighting and put it into your dataframe.  
+
+```{r}
+oj <- oj %>%
+  mutate(Q = exp(logmove))
+```
+
+b. You can use the weighted.mean() function for each store-week combination in the 
+dplyr library. 
+
+```{r}
+Df1 <- ddply(oj, c('store','week'),function(oj) c(weighted_mean = weighted.mean(oj$price,oj$Q)))
+```
+
+```{r}
+oj <- oj %>%
+  left_join(Df1, by = c('store', 'week'))
+```
+
+2. Now use oj$weighted_price as the LHS variable in a regression tree to predict 
+differences in sales weight prices with store demographics as RHS variables.  Note that you’ll only need to do for a single brand since weighted price and sociodemographic variables are identical across brands within a store. 
+
+b. There are two main pieces of code:
+
+```{r}
+dataToPass <- oj[,c("weighted_mean","AGE60","EDUC","ETHNIC","INCOME","HHLARGE","WORKWOM","HVAL150","SSTRDIST","SSTRVOL","CPDIST5","CPWVOL5")]
+```
+
+a
+
+```{r}
+fit<-rpart(as.formula(weighted_mean ~ .),data=dataToPass,method="anova",cp=0.007)
+```
+
+c. Play around with a couple different complexity parameters to get a feel for the data
+
+```{r}
+draw.tree(fit)
+```
+
+d. Choose three different leaves to group stores into based upon what explains sales weighted price. 
+
+i. Assign each store to one of these leaves (we used this code previously).
+
+```{r}
+dataToPass$leaf = fit$where 
+```
+
+3. Estimate the own price elasticities for each one of the store buckets/leaves using the preferred specification:
+
+```{r}
+oj$leaf = fit$where
+
+oj_leaf_2 <- oj %>%
+  filter(leaf == 2)
+
+oj_leaf_4 <- oj %>%
+  filter(leaf == 4)
+
+oj_leaf_5 <- oj %>%
+  filter(leaf == 5)
+```
+
+```{r}
+model1 <- glm(logmove~log(price)*brand*feat, 
+data=oj_leaf_2)
+model2 <- glm(logmove~log(price)*brand*feat, 
+data=oj_leaf_4)
+model3 <- glm(logmove~log(price)*brand*feat, 
+data=oj_leaf_5)
+
+summary(model1)
+summary(model2)
+summary(model3)
+```
+
+a. Now estimate cross price elasticities jointly with own price elasticities.  This means you must create a dataframe which has the prices of all types of OJ at the store.
+
+```{r}
+oj_price <- oj %>%
+  select(store, week, brand, price) %>% 
+  group_by(store, week, brand) %>%
+  mutate(brand_temp = brand) %>%
+  pivot_wider(id_cols = c(store, week), names_from = brand, values_from = price)
+  
+oj_join <- oj %>% 
+  select(store, week, logmove, brand, leaf, feat) %>% 
+  left_join(oj_price, by = c('store', 'week'))
+
+oj_trop <- oj_join %>%
+  filter(brand == "tropicana")
+
+oj_minu <- oj_join %>%
+  filter(brand == "minute.maid")
+
+oj_domi <- oj_join %>%
+  filter(brand == "dominicks")
+
+model4 <- lm(logmove ~ log(tropicana) + log(minute.maid) + log(dominicks), data = oj_trop)
+model5 <- lm(logmove ~ log(tropicana) + log(minute.maid) + log(dominicks), data = oj_minu)
+model6 <- lm(logmove ~ log(tropicana) + log(minute.maid) + log(dominicks), data = oj_domi)
+
+summary(model4)
+summary(model5)
+summary(model6)
+```
+
+b. You’ll also have to run 3 separate regressions for each leaf for a total of nine regressions.  
+
+```{r}
+# trop
+oj_trop_2 <- oj_trop %>%
+  filter(leaf == 2)
+
+oj_trop_4 <- oj_trop %>%
+  filter(leaf == 4)
+
+oj_trop_5 <- oj_trop %>%
+  filter(leaf == 5)
+
+#MM
+oj_minu_2 <- oj_minu %>%
+  filter(leaf == 2)
+
+oj_minu_4 <- oj_minu %>%
+  filter(leaf == 4)
+
+oj_minu_5 <- oj_minu %>%
+  filter(leaf == 5)
+
+#Domi
+oj_domi_2 <- oj_domi %>%
+  filter(leaf == 2)
+
+oj_domi_4 <- oj_domi %>%
+  filter(leaf == 4)
+
+oj_domi_5 <- oj_domi %>%
+  filter(leaf == 5)
+```
+
+```{r}
+# trop
+model_t2 <- glm(logmove~log(dominicks)*feat + log(tropicana)*feat + log(minute.maid)*feat, data=oj_trop_2)
+model_t4 <- glm(logmove~log(dominicks)*feat + log(tropicana)*feat + log(minute.maid)*feat, data=oj_trop_4)
+model_t5 <- glm(logmove~log(dominicks)*feat + log(tropicana)*feat + log(minute.maid)*feat, data=oj_trop_5)
+
+#MM
+model_m2 <- glm(logmove~log(dominicks)*feat + log(tropicana)*feat + log(minute.maid)*feat, data=oj_minu_2)
+model_m4 <- glm(logmove~log(dominicks)*feat + log(tropicana)*feat + log(minute.maid)*feat, data=oj_minu_4)
+model_m5 <- glm(logmove~log(dominicks)*feat + log(tropicana)*feat + log(minute.maid)*feat, data=oj_minu_5)
+
+#domi
+model_d2 <- glm(logmove~log(dominicks)*feat + log(tropicana)*feat + log(minute.maid)*feat, data=oj_domi_2)
+model_d4 <- glm(logmove~log(dominicks)*feat + log(tropicana)*feat + log(minute.maid)*feat, data=oj_domi_4)
+model_d5 <- glm(logmove~log(dominicks)*feat + log(tropicana)*feat + log(minute.maid)*feat, data=oj_domi_5)
+
+# matrix
+trop_2 <- summary(model_t2)$coefficients[, "Estimate"][c(4,5,2)]
+minu_2 <- summary(model_m2)$coefficients[, "Estimate"][c(4,5,2)]
+domi_2 <- summary(model_d2)$coefficients[, "Estimate"][c(4,5,2)]
+
+matrix_m <- rbind(trop_2, minu_2, domi_2)
+matrix_m
+
+trop_4 <- summary(model_t4)$coefficients[, "Estimate"][c(4,5,2)]
+minu_4 <- summary(model_m4)$coefficients[, "Estimate"][c(4,5,2)]
+domi_4 <- summary(model_d4)$coefficients[, "Estimate"][c(4,5,2)]
+
+matrix_t <- rbind(trop_4, minu_4, domi_4)
+matrix_t
+
+trop_5 <- summary(model_t5)$coefficients[, "Estimate"][c(4,5,2)]
+minu_5 <- summary(model_m5)$coefficients[, "Estimate"][c(4,5,2)]
+domi_5 <- summary(model_d5)$coefficients[, "Estimate"][c(4,5,2)]
+
+matrix_d <- rbind(trop_5, minu_5, domi_5)
+matrix_d
+```
+
+c. Comment on any differences between own and cross price elasticities by leaf.  
+
+Most part of these three matrices are the same, except the cross price elasticity of dominicks on quantity of tropicana turns negative in last leaf.
+
+4. Now let’s use the elasticities to think about pricing differentials.
+a. In the leaf with the highest own-price elasticities, what should the markups be relative to the other leafs? 
+
+The markups of the leaf with highest own-price elasticities should lower compared to other leafs.
+
+b. How do cross-price elasticities vary with the highest versus lowest own price elasticity leafs? 
+
+For most of the part of the matrices, the cross-price elasticities of the highest own price elasticity leaf are relatively lower.
+
+i. What does this imply about differences in markups within high versus low elasticity stores across brands?
+
+The markups for high elasticity stores should be higher across brands as own-price elasticity influence the markups the most compared to cross price elasticities.
+
+ii. Can you say anything about what this means for the timing of sales?  Should they occur at the same or different times across stores?
+
+All brand should not sale at the same time as brands are not all substitutes of complements at the same time from the cross price elasticity.
+
+5. We’re going to do some basic exploration with xgboost.
+
+```{r}
+library(xgboost)
+
+oj<- read.csv("C:\\UW\\AUT 2022\\ECON 487\\HW 2\\oj.csv")
+```
+
+b. Divide the data into a training set (80% of the data) and a hold-out set (20% of the data).
+
+```{r}
+training <- sample(1:nrow(oj), nrow(oj)*0.8, replace = F)
+
+oj_train <- oj[training,]
+
+oj_test <- oj[-training,]
+```
+
+c. We’re going to train a model to predict logmove. To do this, we’re going to create a training and testing matrix that we can give to the package to do cross validation on.
+
+i. Use the xgb.DMatrix function to create a train and test matrix. This function takes arguments “data” (must be a matrix) and “label” (the outcome, logmove in our case).
+
+```{r}
+train_data <- oj_train %>%
+  select(-brand, -logmove)
+train_labels <- oj_train$logmove
+train_data <- as.matrix(train_data)
+train_labels <- as.matrix(train_labels)
+train_matrix <- xgb.DMatrix(data = train_data, label = train_labels)
+
+test_data <- oj_test %>%
+  select(-brand, -logmove)
+test_labels <- oj_test$logmove
+test_data <- as.matrix(test_data)
+test_labels <- as.matrix(test_labels)
+test_matrix <- xgb.DMatrix(data = test_data, label = test_labels)
+```
+
+ii. Use the xgb.cv function to do 5-fold cross-validation on our training data.
+
+```{r}
+fit <- xgb.cv(data = train_matrix, nfold = 5, nrounds = 1000, print_every_n = 100)
+```
+
+iii. Report the training RMSE (root mean squared error) and testing RMSE from the best model. How does this compare to previous models that we’ve used (remember that you should square this to get MSE)?
+
+The smallest training RMSE for nrounds = 1000 is 0.1184 in last iteration, and the testing RMSE is 0.399228+0.007122 in 230 iteration, which means the new MSEs are all larger than MSE, 0.0148039 in my HW3, for other models we previously tried.
+
+iv. Use the xgboost function to train a model on the full training data using our one cross-validated hyperparameter (the number of training iterations). To do this, find the best iteration of the cross validated model and set that as nrounds for the xgboost function.
+
+```{r}
+fit_boost <- xgboost(data = train_matrix, nrounds = 230, print_every_n = 23)
+```
+
+v. Use the predict command (the same way that we do in regression) and your testing xgb.DMatrix to assess the fit of the model on the test data. How does the MSE compare to the MSE from cross-validation? How does it compare to prior models?
+
+```{r}
+logmove_hat <- predict(fit_boost, newdata = test_matrix)
+
+MSE <- sum((test_labels - logmove_hat)^2)/5790
+MSE
+```
+
+The MSE for cross-valication is around 0.4 $\cdot$ 0.4 = 0.16. Thus, new MSE is approximately the same as MSE for cross-validation. And MSE for xgboost is also larger than the previous MSE, 0.0148039, for HW3.
+
+
+
+
+
+
+
+
+

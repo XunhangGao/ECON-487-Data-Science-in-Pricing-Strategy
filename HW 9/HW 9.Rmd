@@ -1,0 +1,134 @@
+---
+title: "HW 9"
+author: "David Gao"
+date: "2022-12-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(plyr)
+library(rpart)
+library(rpart.plot)
+library(partykit)
+library(permute)
+library(maptree)
+library(randomForest)
+library(glmnet)
+```
+
+```{r}
+retail <- read.csv("C:\\UW\\AUT 2022\\ECON 487\\HW 9\\online_retail.csv")
+```
+
+```{r}
+temp <- retail %>%
+  mutate(year = format(as.Date(InvoiceDate, format = "%m/%d/%Y %H:%M"), "%y"))
+```
+
+1.
+```{r}
+temp <- temp %>%
+  mutate(total_spent = UnitPrice*Quantity)
+```
+
+```{r}
+top_four <- temp %>%
+  group_by(CustomerID) %>%
+  summarise_at(vars(total_spent), list(revenue = sum)) %>%
+  ungroup() %>%
+  mutate(percentage = revenue/sum(revenue)) %>%
+  arrange(desc(revenue))
+
+head(top_four, 10)
+```
+
+2.
+```{r}
+ggplot(data = temp)+
+  geom_histogram(mapping = aes(x = Quantity), bins = 30)
+```
+
+3.
+```{r}
+#temp %>%
+#  group_by(CustomerID) %>%
+#  summarise(avg_spent = mean(total_spent))
+
+avg_Customer <- temp %>%
+  group_by(CustomerID, year) %>%
+  summarise_at(vars(total_spent), list(avg_spent = mean)) %>%
+  ungroup()
+
+avg_Country <- temp %>%
+  group_by(Country, year) %>%
+  summarise_at(vars(total_spent), list(avg_spent = mean)) %>%
+  ungroup()
+
+head(avg_Customer,10)
+head(avg_Country,10)
+```
+
+4.
+```{r}
+top <- temp %>%
+  group_by(StockCode) %>%
+  summarise_at(vars(total_spent), list(revenue = sum)) %>%
+  ungroup()
+
+top_selling <- top %>%
+  arrange(desc(revenue))
+
+head(top_selling, 10)
+```
+
+5.
+```{r}
+var_max <- temp %>%
+  group_by(StockCode) %>%
+  filter(UnitPrice == max(UnitPrice)) %>%
+  ungroup() %>%
+  mutate(minmax = "max") %>%
+  select(StockCode, UnitPrice, minmax)
+
+var_min <- temp %>%
+  group_by(StockCode) %>%
+  filter(UnitPrice == min(UnitPrice)) %>%
+  ungroup() %>%
+  mutate(minmax = "min") %>%
+  select(StockCode, UnitPrice, minmax)
+
+variation <- rbind(var_max, var_min)
+
+variation <- variation %>%
+  group_by(StockCode, minmax) %>%
+  distinct(UnitPrice) %>%
+  ungroup() %>%
+  pivot_wider(names_from = minmax, values_from = UnitPrice)
+
+head(variation, 10)
+```
+
+6.
+```{r}
+returned <- temp %>%
+  filter(UnitPrice < 0) %>%
+  summarise(total_returned = sum(total_spent))
+
+returned
+```
+
+
+
+
+
+
+
+
+

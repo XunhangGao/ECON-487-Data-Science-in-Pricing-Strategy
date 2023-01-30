@@ -1,0 +1,66 @@
+---
+title: "HW 7"
+author: "David Gao"
+date: '2022-11-15'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(plyr)
+library(rpart)
+library(rpart.plot)
+library(partykit)
+library(permute)
+library(maptree)
+library(randomForest)
+library(glmnet)
+```
+
+```{r}
+oj<- read.csv("C:\\UW\\AUT 2022\\ECON 487\\HW 2\\oj.csv")
+```
+
+```{r}
+oj$price <- log(oj$price) 
+oj.rf <- randomForest(logmove ~ ., data = oj, ntree = 100, keep.forest = TRUE) 
+oj$pred_logmove_rf = predict(oj.rf)
+oj$resid2 <-  (oj$logmove - oj$pred_logmove_rf)^2 
+```
+
+```{r}
+ggplot(data = oj)+
+  geom_point(mapping = aes(x = logmove, y = pred_logmove_rf), , position = "jitter", alpha = 0.4)
+```
+
+
+```{r}
+MSE_rf <- sum(oj$resid2)/nrow(oj)
+
+oj_RHS <- oj %>%
+  select(brand, store, week, feat, price, AGE60, EDUC, ETHNIC, INCOME, HHLARGE, WORKWOM, HVAL150, SSTRDIST, SSTRVOL, CPDIST5, CPWVOL5)
+
+oj_LHS <- oj %>%
+  select(logmove)
+
+x <- as.matrix(oj_RHS[, 3:16])
+y <- as.numeric(as.matrix(oj_LHS))
+
+lasso_v1 <- cv.glmnet(x, y, alpha=1)
+
+oj_logmove_hat <- predict(lasso_v1, newx = x)
+
+MSE_lasso <- sum((oj$logmove - oj_logmove_hat)^2)/nrow(oj)
+
+MSE_rf
+MSE_lasso
+```
+
+Looks like the MSE for LASSO model is larger than the MSE of random forest.
+
